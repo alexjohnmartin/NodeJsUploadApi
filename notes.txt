@@ -1,0 +1,5 @@
+is the writing of events to the text file (using a command line operator) thread-safe?
+
+set the file name of the events file dynaically (to today's date)
+
+error handling around read/copy of uploaded file

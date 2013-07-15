@@ -15,10 +15,19 @@ var guid = require('node-uuid');
 var lastMsgId = guid.v1(); 
 var currentMsgId; 
 var correlationId; 
+var eventsFileName; 
 var sys = require('sys');
 var zmq = require('zmq');
 var pubSocket = zmq.socket('pub');
 pubSocket.bindSync("tcp://127.0.0.1:5000");
+var subSocket = zmq.socket('sub'); 
+
+subSocket.on('message', function(reply){
+	console.log("message received: " + reply.toString());
+});
+
+subSocket.connect("tcp://127.0.0.1:5000"); 
+subSocket.subscribe('RPT_NEW_');
 
 // all environments
 app.set('port', process.env.PORT || 3000);
@@ -42,6 +51,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.post('/upload', function(req, res) {
 	currentMsgId = guid.v1(); 
 	correlationId = guid.v1(); 
+	eventsFileName = "events.txt";
 
     //console.log(JSON.stringify(req.files));
     var data = parseRequestIntoObject(req); 
@@ -61,6 +71,7 @@ http.createServer(app).listen(app.get('port'), function(){
 });
 
 process.on('SIGINT', function() {
+	subSocket.close(); 
 	pubSocket.close();
 });
 
@@ -85,7 +96,7 @@ function publishEvent(data) {
 
 function writeEventToFlatFile(data) {
 	console.log("writing to flat file");
-	var command = "echo '" + currentMsgId + "|" + correlationId + "|" + serializedData(data) + "' >> events.txt";
+	var command = "echo '" + currentMsgId + "|" + correlationId + "|" + serializedData(data) + "' >> " + eventsFileName;
 	var exec = require('child_process').exec;
 	var child = exec(command, function (error, stdout, stderr) { /* do something */ });
 }
