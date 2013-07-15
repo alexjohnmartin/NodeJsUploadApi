@@ -1,0 +1,26 @@
+<html>
+<head>
+<title>Upload Example</title>
+</head>
+<body>
+ 
+<form id="uploadForm" enctype="multipart/form-data" action="http://127.0.0.1:3000/upload" method="post">
+	<p>
+		<label for="userId">User ID</label>
+		<input type="text" id="userId" name="userId" />
+	</p>
+	<!-- <p>
+		<label for="userId">User ID</label>
+		<input type="text" id="userId" name="userId" />
+	</p> -->
+	<p>
+		<label for="uploadFile">Upload</label>
+		<input type="file" id="uploadFile" name="uploadFile" />
+	</p>
+	<p>
+		<input type="submit" name="submit" id="submit" value="upload" />
+	</p>
+</form>
+
+</body>
+</html>
