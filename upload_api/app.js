@@ -17,17 +17,17 @@ var currentMsgId;
 var correlationId; 
 var eventsFileName; 
 var sys = require('sys');
-var zmq = require('zmq');
-var pubSocket = zmq.socket('pub');
-pubSocket.bindSync("tcp://127.0.0.1:5000");
-var subSocket = zmq.socket('sub'); 
+//var zmq = require('zmq');
+//var pubSocket = zmq.socket('pub');
+//pubSocket.bindSync("tcp://127.0.0.1:5000");
+//var subSocket = zmq.socket('sub'); 
 
-subSocket.on('message', function(reply){
-	console.log("message received: " + reply.toString());
-});
+//subSocket.on('message', function(reply){
+//	console.log("message received: " + reply.toString());
+//});
 
-subSocket.connect("tcp://127.0.0.1:5000"); 
-subSocket.subscribe('RPT_NEW_');
+//subSocket.connect("tcp://127.0.0.1:5000"); 
+//subSocket.subscribe('RPT_NEW_');
 
 // all environments
 app.set('port', process.env.PORT || 3000);
@@ -49,6 +49,8 @@ app.use(express.static(path.join(__dirname, 'public')));
 // app.get('/users', user.list);
 
 app.post('/upload', function(req, res) {
+console.log("POST received");
+
 	currentMsgId = guid.v1(); 
 	correlationId = guid.v1(); 
 	eventsFileName = "events.txt";
@@ -57,8 +59,9 @@ app.post('/upload', function(req, res) {
     var data = parseRequestIntoObject(req); 
     console.log(JSON.stringify(data));
     saveFile(req, res, data); 
-    writeEventToFlatFile(data); 
-    publishEvent(data); 
+    //writeEventToFlatFile(data); 
+    //publishEvent(data); 
+    saveEventToEventStore(data); 
 
     lastMsgId = currentMsgId; 
 
@@ -70,10 +73,10 @@ http.createServer(app).listen(app.get('port'), function(){
 	console.log('Express server listening on port ' + app.get('port'));
 });
 
-process.on('SIGINT', function() {
-	subSocket.close(); 
-	pubSocket.close();
-});
+//process.on('SIGINT', function() {
+//	subSocket.close(); 
+//	pubSocket.close();
+//});
 
 function saveFile(req, res, data) {
 	console.log("saving file");
@@ -101,6 +104,27 @@ function writeEventToFlatFile(data) {
 	var child = exec(command, function (error, stdout, stderr) { /* do something */ });
 }
 
+function saveEventToEventStore(data) {
+	console.log("sending event to event store");
+
+	var eventStoreEvent = new Object(); 
+	eventStoreEvent.eventId = guid.v1(); 
+	eventStoreEvent.eventType = "receipt-uploaded";
+	eventStoreEvent.data = data; 
+
+	var command = "curl -i \"http://127.0.0.1:2113/streams/uploadstream\" -H \"Content-Type:application/json\" -d ";
+	command = command + "\"["; 
+	command = command + replaceAll("\"", "'", serializedData(eventStoreEvent)); 
+	command = command + "]\""; 
+
+	console.log("command: " + command);
+
+	var exec = require('child_process').exec;
+	var child = exec(command, function (error, stdout, stderr) { if (error != null) console.log(error); });
+
+	console.log("sent event to event store");
+}
+
 function getFileExtension(filename) {
 	var index = filename.lastIndexOf(".");
 	if (index > -1) {
@@ -110,9 +134,16 @@ function getFileExtension(filename) {
 	return "";
 }
 
+function replaceAll(find, replace, str) {
+    return str.replace(new RegExp(find, 'g'), replace);
+}
+
 function parseRequestIntoObject(req) {
 	var data = new Object(); 
+	console.log("parsing user ID");
 	data.userId = req.body.userId; 
+	console.log("user ID = " + data.userId);
+	console.log("parsing filename");
 	data.filename = correlationId + getFileExtension(req.files.uploadFile.name);
 	data.prevMsgId = lastMsgId; 
 	data.msgId = currentMsgId; 
