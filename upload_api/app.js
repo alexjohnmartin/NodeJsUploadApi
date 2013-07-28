@@ -55,18 +55,15 @@ console.log("POST received");
 	correlationId = guid.v1(); 
 	eventsFileName = "events.txt";
 
-    //console.log(JSON.stringify(req.files));
     var data = parseRequestIntoObject(req); 
-    console.log(JSON.stringify(data));
-    saveFile(req, res, data); 
-    //writeEventToFlatFile(data); 
-    //publishEvent(data); 
+    saveFile(req, res, data);
     saveEventToEventStore(data); 
+    //publishEvent(data);  
 
     lastMsgId = currentMsgId; 
 
     res.writeHead(200, {'Content-Type': 'text/plain'});
-	res.end('Hello World\n');
+	res.end('Receipt uploaded\n');
 });
 
 http.createServer(app).listen(app.get('port'), function(){
@@ -97,13 +94,6 @@ function publishEvent(data) {
 	pubSocket.send("RPT_NEW_" + serializedData(data));
 }
 
-function writeEventToFlatFile(data) {
-	console.log("writing to flat file");
-	var command = "echo '" + currentMsgId + "|" + correlationId + "|" + serializedData(data) + "' >> " + eventsFileName;
-	var exec = require('child_process').exec;
-	var child = exec(command, function (error, stdout, stderr) { /* do something */ });
-}
-
 function saveEventToEventStore(data) {
 	console.log("sending event to event store");
 
@@ -112,17 +102,38 @@ function saveEventToEventStore(data) {
 	eventStoreEvent.eventType = "receipt-uploaded";
 	eventStoreEvent.data = data; 
 
-	var command = "curl -i \"http://127.0.0.1:2113/streams/uploadstream\" -H \"Content-Type:application/json\" -d ";
-	command = command + "\"["; 
-	command = command + replaceAll("\"", "'", serializedData(eventStoreEvent)); 
-	command = command + "]\""; 
-
-	console.log("command: " + command);
-
-	var exec = require('child_process').exec;
-	var child = exec(command, function (error, stdout, stderr) { if (error != null) console.log(error); });
+	var post_data = "[" + serializedData(eventStoreEvent) + "]"; 
+	sendHttpPost(post_data); 
 
 	console.log("sent event to event store");
+}
+
+
+function sendHttpPost(post_data) {
+
+	// An object of options to indicate where to post to
+	var post_options = {
+		host: '127.0.0.1',
+		port: '2113',
+		path: '/streams/uploadstream',
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json',
+			'Content-Length': post_data.length
+		}
+	};
+
+	// Set up the request
+	var post_req = http.request(post_options, function(res) {
+		res.setEncoding('utf8');
+		res.on('data', function (chunk) {
+			console.log('Response: ' + chunk);
+		});
+	});
+
+	// post the data
+	post_req.write(post_data);
+	post_req.end();
 }
 
 function getFileExtension(filename) {
@@ -134,16 +145,9 @@ function getFileExtension(filename) {
 	return "";
 }
 
-function replaceAll(find, replace, str) {
-    return str.replace(new RegExp(find, 'g'), replace);
-}
-
 function parseRequestIntoObject(req) {
 	var data = new Object(); 
-	console.log("parsing user ID");
 	data.userId = req.body.userId; 
-	console.log("user ID = " + data.userId);
-	console.log("parsing filename");
 	data.filename = correlationId + getFileExtension(req.files.uploadFile.name);
 	data.prevMsgId = lastMsgId; 
 	data.msgId = currentMsgId; 
